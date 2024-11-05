@@ -1,7 +1,7 @@
 Sample Terraform Stacks
 =======================
 
-This is an anonymised repo for a multi-account AWS setup, written for a previous employer. The directory structure was largely based off a prior nascent-and-unused Terragrunt setup they had for Azure, but the file content is almost entirely written by yours truly. Terragrunt was not used in this setup because it's massive overkill for a small shop and basically means configuring everything twice.
+This is an anonymised repo for a multi-account AWS setup, which was opensourced by a previous employer. The directory structure was largely based off a prior nascent-and-unused Terragrunt setup they had for Azure, but the file content is almost entirely written by yours truly. Terragrunt was not used in this setup because it's massive overkill for a small shop and basically means configuring everything twice.
 
 Features:
 
