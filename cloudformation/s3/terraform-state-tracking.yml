@@ -1,0 +1,58 @@
+Description:
+
+    S3 bucket to store Terraform statefiles
+
+Parameters:
+
+    AccountNamespace:
+        Description: "Namespace to prefix the bucket names. Nickname for the account (eg: 'aaa')"
+        Type: String
+        Default: aaa
+        AllowedPattern: .+
+
+    NoncurrentVersionTransitionDays:
+        Description: "Old versions of a file (overwritten/deleted) transition to GLACIER after this many days"
+        Type: String
+        Default: 14
+
+    NoncurrentVersionExpirationDays:
+        Description: "Old versions of a file (overwritten/deleted) are destroyed after this many days"
+        Type: String
+        Default: 720
+
+Resources:
+    TerraformBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Sub "${AccountNamespace}-terraform"
+            VersioningConfiguration:
+                Status: Enabled
+            LifecycleConfiguration:
+                Rules:
+                - Id: ExpiredOldVerions
+                  NoncurrentVersionTransitions:
+                  - StorageClass: GLACIER
+                    TransitionInDays: !Ref NoncurrentVersionTransitionDays
+                  NoncurrentVersionExpiration:
+                    NoncurrentDays: !Ref NoncurrentVersionExpirationDays
+                  Status: Enabled
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+
+    TerraformLockTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+            TableName: terraform-state-lock
+            BillingMode: PAY_PER_REQUEST
+            AttributeDefinitions:
+            - AttributeName: LockID
+              AttributeType: S
+            KeySchema:
+            - AttributeName: LockID
+              KeyType: HASH
+            #ProvisionedThroughput:
+            #    ReadCapacityUnits: 3
+            #    WriteCapacityUnits: 3

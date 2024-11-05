@@ -1,0 +1,78 @@
+# oddly, there appears to be no way to create an SSO group in Cloudformation...
+# even weirder when one of the only two columns in the summary is whether or
+# not it's been manually created
+
+Description: |
+    This role is for the hub/root account and is a permissions set solely to allow access to the Terraform remote state bucket. The name of this role is also added to the client account terraform roles, allowing the role defined here to assume those roles. The point of this role is to make it clearer in the AWS SSO dashboard which profile is meant to be used with Terraform (the standard superadmin role in the root account will also work)
+
+Parameters:
+    TerraformStateBucket:
+        Type: String
+        Default: "aaa-terraform"
+
+    IAMIdentityCentreARN:
+        Type: String
+        Default: "arn:aws:sso:::instance/ssoins-0123456789"
+
+    SSOGroupID:
+        Description: "ID of the SSO group. Must be manually created beforehand"
+        Type: String
+        Default: "[overwrite this with UUID from the SSO group]"
+
+Resources:
+    TerraformPermissionSet:
+        Type: AWS::SSO::PermissionSet
+        Properties:
+            Name: terraform
+            Description: "allows write access to Terraform s3 bucket and allows terraform roles in client accounts to be assumed"
+            InstanceArn: !Ref IAMIdentityCentreARN
+            SessionDuration: PT9H
+            CustomerManagedPolicyReferences:
+            - Name: s3-terraform-rw
+
+
+    TerraformGroupAssignment:
+        Type: AWS::SSO::Assignment
+        Properties:
+            InstanceArn: !Ref IAMIdentityCentreARN
+            PermissionSetArn: !GetAtt TerraformPermissionSet.PermissionSetArn
+            TargetId: !Ref AWS::AccountId
+            TargetType: AWS_ACCOUNT
+            PrincipalType: GROUP
+            PrincipalId: !Ref SSOGroupID
+
+    TerraformManagedPolicy:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+            ManagedPolicyName: s3-terraform-rw
+            # the AssumeRole is required to allow cross-account Role assumption for client account Terraform roles
+            PolicyDocument: {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "ListObjectsInBucket",
+                                    "Effect": "Allow",
+                                    "Action": ["s3:ListBucket"],
+                                    "Resource": ["Fn::Sub": "arn:aws:s3:::${TerraformStateBucket}"]
+                                },
+                                {
+                                    "Sid": "AllObjectActions",
+                                    "Effect": "Allow",
+                                    "Action": "s3:*Object",
+                                    "Resource": ["Fn::Sub": "arn:aws:s3:::${TerraformStateBucket}/*"]
+                                },
+                                {
+                                    "Sid": "DynamoDBLockfile",
+                                    "Effect": "Allow",
+                                    "Action": "dynamodb:*Item",
+                                    "Resource": [ "Fn::Sub": "arn:aws:dynamodb:ap-southeast-2:${AWS::AccountId}:table/terraform-state-lock" ]
+                                },
+                                {
+                                    "Sid": "AssumeRole",
+                                    "Effect": "Allow",
+                                    "Action": "sts:AssumeRole",
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+

@@ -1,0 +1,29 @@
+# this is in cloudformation rather than terraform as it belongs on the root AWS account, which isn't terraformed
+
+# unlike the Terraform permissions set template, we're not attaching it to a group. This is manually managed for meatspace user groups. Terraform has the advantage of only ever being appropriate for a single, preconfigured group.
+
+# NOTE: any account you apply this permissions set to must have policies in it that match the names listed under `CustomerManagedPolicyReferences:`
+
+Description: |
+    This creates an SSO Permissions Set that is mostly read only, but has some write permissions for developer tasks in production. To start with, it's just the ability to connect to ECS containers.
+
+
+Parameters:
+    IAMIdentityCentreARN:
+        Type: String
+        Default: "arn:aws:sso:::instance/ssoins-825972e93c852ad7"
+
+Resources:
+    MostlyReadOnlyPermissionSet:
+        Type: AWS::SSO::PermissionSet
+        Properties:
+            Name: mostly-read-only
+            Description: "Global ReadOnly with some limited write/execute permissions, intended for developer use in production accounts"
+            InstanceArn: !Ref IAMIdentityCentreARN
+            SessionDuration: PT9H
+            ManagedPolicies:
+            - arn:aws:iam::aws:policy/ReadOnlyAccess
+            CustomerManagedPolicyReferences:
+            - Name: sso-developer-rw
+
+

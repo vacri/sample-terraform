@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    cat <<EOF
+Usage: $0 go
+    This script is intended to help set a terraform backend file which sets the
+    s3 'key' to a unique value for that stack. It's intended to be used as a
+    guard script in the Makefile
+EOF
+exit
+fi
+
+set -euo pipefail
+#set -x
+
+
+if [ -z "$ou" ]; then echo "ERROR: env var ou not set or zero length"; exit 5; fi
+if [ -z "$env" ]; then echo "ERROR: env var env not set or zero length"; exit 6; fi
+if [ -z "$stack" ]; then echo "ERROR: env var stack not set or zero length"; exit 7; fi
+
+file_dir="stacks/$ou/$env/$stack"
+if [ ! -d $file_dir ]; then
+    echo "ERROR: No such directory $file_dir (does the stack exist?), aborting $0" >&2
+    exit 8
+fi
+
+target_file="$file_dir/backend.tf"
+if [ -f "$target_file" ]; then
+    target_file_md5=$(md5sum "$target_file" | awk '{print $1}')
+else
+    target_file_md5=-1
+fi
+
+key="\"$ou/$env/$stack/terraform.tfstate\""
+
+content=$(sed "s#null#$key#g" < templates/backend.tf.template)
+content_md5=$(md5sum <<< "$content" | awk '{print $1}')
+
+#md5 check is just to avoid pointless overwrites messing with file edit times
+if [ "$content_md5" != "$target_file_md5" ]; then
+    echo -e "\033[1;37mWriting new $target_file, don't forget to 'make init' and 'git commit'!\033[0m"
+    cat > "$target_file" <<< "$content"
+fi

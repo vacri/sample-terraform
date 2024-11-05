@@ -1,0 +1,29 @@
+Parameters:
+    SourceAccountID:
+        Type: String
+        Default: 123456789012
+
+Resources:
+    TerraformDeployRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: terraform-deploy-superadmin
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                - Effect: Allow
+                  Principal:
+                    # 'root' allows any user in the account to assume the role, not just limited to admins. Limit with a Condition
+                    AWS: !Sub "arn:aws:iam::${SourceAccountID}:root"
+                  Action:
+                  - 'sts:AssumeRole'
+                  Condition:
+                    # these ARNs are pretty hairy and there's no clear way to figure out the pattern
+                    # don't be afraid to open an AWS support ticket for help
+                    ArnLike:
+                      'aws:PrincipalArn':
+                      - !Sub "arn:aws:iam::${SourceAccountID}:role/aws-reserved/sso.amazonaws.com/ap-southeast-2/AWSReservedSSO_terraform_57494df1d80ede97"
+                      - !Sub "arn:aws:iam::${SourceAccountID}:role/aws-reserved/sso.amazonaws.com/ap-southeast-2/AWSReservedSSO_AdministratorAccess_83a886d9783b6ed5"
+            Path: /
+            ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/AdministratorAccess

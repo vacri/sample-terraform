@@ -1,0 +1,9 @@
+These templates provide the SSO permissions (central/management account) and the client account IAM roles for an authenticated user to invoke.
+
+The actual name of the IAM role being invoked is listed in each terraform module's `main.tf` in the AWS 'provider'. This role should exist in the client AWS account. As the root/management account is not intended to be managed with Terraform, there's no such role there (could use the standard Administrator login for that anyway)
+
+The permissions-set template requires you to make an SSO group first. Doesn't seem to be a way to autocreate it. Add your Terraform deployers to that group. Run the SSO template. Users may need to log out of the SSO dashboard and back in again to get the new 'terraform' role showing up. The 'terraform' role created by this template allows assuming client account roles, as well as accessing the terraform state objects on s3 and dynamodb.
+
+Note that the standard 'AdministratorAccess' login can also assume the terraform role - the 'terraform' role is there to make it easier to identify the correct keys to use in the SSO console (there is one AdministratorAccess role for every account, but only the root account's will work with Terraform)
+
+The terraform-deploy-role template needs to be applied in each client template, and creates the superadmin role that is listed in each `main.tf` (only the account ID changes). Note that the 'Condition' in this template is required - if you comment out that condition, then any user on the root account can assume the superadmin 'terraform' role (if they're allowed to assume roles at all). It's fine to temporarily comment it out when troubleshooting or in an emergency, but it shouldn't be left open. Users that might not get full perms would be folks like developers or finance users (who will eventually be given access to the billing console).

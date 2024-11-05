@@ -1,0 +1,180 @@
+# not in Terraform as this stack is in the master account, which we're not Terraforming
+# needs to be in us-east-1, where the billing is (not sydney/ap-southeast-2)
+# nicked from https://github.com/pyraven/cloudformation_sms_alarm/tree/master
+AWSTemplateFormatVersion: 2010-09-09
+Description: Billing Alarms for AWS Account
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Contacts
+      Parameters:
+      - Email
+      - Phone
+    - Label:
+        default: Thresholds
+      Parameters:
+      - HeartbeatAlarmUSD
+      - LowAlarmUSD
+      - MediumAlarmUSD
+      - HighAlarmUSD
+      - OuchieAlarmUSD
+
+Parameters:
+  Email:
+    Type: String
+    Default: sysadmin@aaa.com
+    Description: Your email address to receive alarms per email
+  Phone:
+    Type: String
+    Default: ""
+    Description: Your mobile phone number to receive SMS
+
+  HeartbeatAlarmUSD:
+    Type: String
+    Default: 20
+    Description: Set very low - expected to fire each month as a 'heartbeat' to show the alerts are working
+  LowAlarmUSD:
+    Type: String
+    Default: 500
+    Description: Set low - should fire each month, about halfway through
+  MediumAlarmUSD:
+    Type: String
+    Default: 2000
+    Description: Set medium - a little higher than each month's expected bill
+  HighAlarmUSD:
+    Type: String
+    Default: 4000
+    Description: Set high - a whoopsie, something has gone wrong
+  OuchieAlarmUSD:
+    Type: String
+    Default: 6000
+    Description: Set a little higher - a repeat alert of the above
+
+Conditions:
+  EnablePhoneSNS: !Not [ !Equals [ !Ref Phone, "" ] ]
+
+Resources:
+  BillingAlarmHeartbeat:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # these names are the email Subject lines...
+      AlarmName: "AWS-Billing-Heartbeat-Alarm"
+      AlarmActions:
+        - !Ref BillingAlarmEmail
+      AlarmDescription: !Sub "Billing Alarm for $${HeartbeatAlarmUSD}. This is a monthly 'heartbeat' alarm, ignore it"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      EvaluationPeriods: 1
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      Period: 21600
+      TreatMissingData: breaching
+      Statistic: Maximum
+      Threshold: !Ref HeartbeatAlarmUSD
+
+  BillingAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # these names are the email Subject lines...
+      AlarmName: "AWS-Billing-Low-Alarm"
+      AlarmActions:
+        - !Ref BillingAlarmEmail
+      AlarmDescription: !Sub "Billing Alarm for $${LowAlarmUSD}. If you see this alert in the first half of the month, maybe have a look, otherwise it's expected to appear about halfway through the month"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      EvaluationPeriods: 1
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      TreatMissingData: breaching
+      Period: 21600
+      Statistic: Maximum
+      Threshold: !Ref LowAlarmUSD
+
+  BillingAlarmMedium:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # these names are the email Subject lines...
+      AlarmName: "AWS-Billing-Medium-Alarm"
+      AlarmActions:
+        - !Ref BillingAlarmEmail
+      AlarmDescription: !Sub "Billing Alarm for $${HighAlarmUSD}. Investigate AWS usage if this alert is seen earlier than the last couple of days of the month"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      EvaluationPeriods: 1
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      TreatMissingData: breaching
+      Period: 21600
+      Statistic: Maximum
+      Threshold: !Ref MediumAlarmUSD
+
+  BillingAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # these names are the email Subject lines...
+      AlarmName: "URGENT-AWS-Billing-High-Alarm"
+      AlarmActions:
+        - !Ref BillingAlarmEmail
+        - !Ref BillingAlarmSMS
+      AlarmDescription: !Sub "Billing Alarm for $${HighAlarmUSD}. AWS usage is higher than expected - investigate ASAP"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      EvaluationPeriods: 1
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      TreatMissingData: breaching
+      Period: 21600
+      Statistic: Maximum
+      Threshold: !Ref HighAlarmUSD
+
+  BillingAlarmOuchie:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      # these names are the email Subject lines...
+      AlarmName: "URGENT-AWS-Billing-Very-High-Alarm"
+      AlarmActions:
+        - !Ref BillingAlarmEmail
+        - !Ref BillingAlarmSMS
+      AlarmDescription: !Sub "Billing Alarm for $${OuchieAlarmUSD}. The AWS bill is much higher than expect - investigate ASAP"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      EvaluationPeriods: 1
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      TreatMissingData: breaching
+      Period: 21600
+      Statistic: Maximum
+      Threshold: !Ref OuchieAlarmUSD
+
+  BillingAlarmEmail:
+    Type: AWS::SNS::Topic
+
+  BillingAlarmSMS:
+    Type: AWS::SNS::Topic
+
+  AlarmSubscriberEmail:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref Email
+      Protocol: email
+      TopicArn: !Ref BillingAlarmEmail
+
+  AlarmSubscriberSMS:
+    Condition: EnablePhoneSNS
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref Phone
+      Protocol: sms
+      TopicArn: !Ref BillingAlarmSMS

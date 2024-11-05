@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#stack, stack_dir passed from makefile
+
+if [ -z "$1" ]; then
+    cat <<EOF
+Usage: $0 go
+    This script looks for 'module templates' when creating new deployment
+    stacks, and is intended to be called by the makefile target 'skel'
+    This script will only work if the target stack has the same name as the
+    template, which doesn't work for apps, but does work for base
+    infrastructure stacks
+
+    use "make template" to make a templated stack where the name doesn't match
+EOF
+exit
+fi
+
+
+
+if [ -d "templates/stacks/$stack" ]; then
+    echo "Found template for $stack, copying over"
+    rsync -a "templates/stacks/$stack/" "$stack_dir/"
+else
+    echo "creating empty standard files in $stack_dir"
+    touch $stack_dir/main.tf $stack_dir/outputs.tf $stack_dir/variables.tf $stack_dir/terraform.tfvars
+fi
+
